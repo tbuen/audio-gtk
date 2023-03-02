@@ -1,2 +1,2 @@
 # audio-gtk
-GTK App for ESP32 Audio Player 
+[![Rust](https://github.com/tbuen/audio-gtk/actions/workflows/rust.yml/badge.svg)](https://github.com/tbuen/audio-gtk/actions/workflows/rust.yml)

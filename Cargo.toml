@@ -4,4 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-gtk = { version = "0.4", package = "gtk4", features = ["v4_6"]}
+backend = { path = "backend", package = "audio-backend" }
+adw = { version = "0.3", package = "libadwaita", features = ["v1_2"] }
+glib = { version = "0.17", features = ["v2_74"] }
