@@ -25,7 +25,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install gnome-platform-devel
+        sudo apt-get install libadwaita-1-dev
     - name: Build
       run: cargo build --verbose
     - name: Run tests
