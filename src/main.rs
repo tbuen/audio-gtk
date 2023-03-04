@@ -1,6 +1,6 @@
-use adw::gio::{resources_register, Menu, Resource, SimpleAction};
+use adw::gio::{resources_register, Resource, SimpleAction};
 use adw::glib::{clone, Bytes};
-use adw::gtk::{Box, Button, MenuButton, Orientation};
+use adw::gtk::{Box, Button, Orientation};
 use adw::prelude::*;
 use adw::{AboutWindow, Application, ApplicationWindow, HeaderBar};
 
@@ -20,16 +20,31 @@ fn activate(app: &Application) {
     let res = Resource::from_data(&resource_data).unwrap();
     resources_register(&res);
 
-    let menu = Menu::new();
-    menu.append(Some("Device"), None);
-    menu.append(Some("Info"), Some("win.info"));
-    let menu_button = MenuButton::builder()
-        .icon_name("open-menu-symbolic")
-        .menu_model(&menu)
+    let about_button = Button::builder()
+        .icon_name("help-about-symbolic")
+        .action_name("win.about")
+        .build();
+
+    let settings_button = Button::builder()
+        .icon_name("emblem-system-symbolic")
+        .sensitive(false)
+        .build();
+
+    let connection_button = Button::builder()
+        .icon_name("network-error-symbolic")
+        .build();
+
+    let volume_button = Button::builder()
+        .icon_name("audio-volume-high-symbolic")
+        .tooltip_text("50%")
         .build();
 
     let header_bar = HeaderBar::builder().build();
-    header_bar.pack_end(&menu_button);
+
+    header_bar.pack_end(&about_button);
+    header_bar.pack_end(&settings_button);
+    header_bar.pack_start(&connection_button);
+    header_bar.pack_start(&volume_button);
 
     let button = Button::builder()
         .label("Press me!")
@@ -44,6 +59,7 @@ fn activate(app: &Application) {
     });
 
     let vbox = Box::builder().orientation(Orientation::Vertical).build();
+
     vbox.append(&header_bar);
     vbox.append(&button);
 
@@ -55,8 +71,9 @@ fn activate(app: &Application) {
         .default_height(600)
         .build();
 
-    let action_info = SimpleAction::new("info", None);
-    action_info.connect_activate(clone!(@weak app, @weak window => move |_, _| {
+    let action_about = SimpleAction::new("about", None);
+
+    action_about.connect_activate(clone!(@weak app, @weak window => move |_, _| {
         AboutWindow::builder()
             .application(&app)
             .transient_for(&window)
@@ -70,7 +87,7 @@ fn activate(app: &Application) {
             .present();
     }));
 
-    window.add_action(&action_info);
+    window.add_action(&action_about);
 
     window.present();
 }
