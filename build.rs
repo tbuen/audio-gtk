@@ -1,10 +1,11 @@
 use std::process::Command;
 
 fn main() {
-    Command::new("sh")
-        .args(&["-c", "cd resources && glib-compile-resources resources.xml"])
-        .output()
-        .unwrap();
+    glib_build_tools::compile_resources(
+        &["resources"],
+        "resources/resources.xml",
+        "resources.gresource",
+    );
 
     let output = Command::new("git")
         .arg("describe")

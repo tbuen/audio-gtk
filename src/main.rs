@@ -1,8 +1,8 @@
-use adw::gio::{resources_register, Resource, SimpleAction};
-use adw::glib::{clone, Bytes, MainContext, PRIORITY_DEFAULT};
-use adw::gtk::{Box, Button, Label, Orientation};
+use adw::gio::resources_register_include;
+use adw::glib::{clone, MainContext, PRIORITY_DEFAULT};
+use adw::gtk::{Builder, Button};
 use adw::prelude::*;
-use adw::{AboutWindow, Application, ApplicationWindow, HeaderBar, Window, WindowTitle};
+use adw::{AboutWindow, Application, ApplicationWindow, Window};
 use backend::{Backend, Event};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -49,113 +49,34 @@ fn build_ui(
     _backend: &Option<Backend>,
     receiver: Arc<Mutex<Option<Receiver<Event>>>>,
 ) {
-    let resources_bytes = include_bytes!("../resources/resources.gresource");
-    let resource_data = Bytes::from(&resources_bytes[..]);
-    let res = Resource::from_data(&resource_data).unwrap();
-    resources_register(&res);
+    resources_register_include!("resources.gresource").unwrap();
 
-    let about_button = Button::builder()
-        .icon_name("help-about-symbolic")
-        .action_name("win.about")
-        .build();
+    let builder = Builder::new();
+    builder
+        .add_from_resource("/com/github/tbuen/audio-gtk/ui/window_main.ui")
+        .unwrap();
+    builder
+        .add_from_resource("/com/github/tbuen/audio-gtk/ui/window_stats.ui")
+        .unwrap();
 
-    let settings_button = Button::builder()
-        .icon_name("emblem-system-symbolic")
-        .sensitive(false)
-        .build();
+    let window_main: ApplicationWindow = builder.object("window_main").unwrap();
+    window_main.set_application(Some(app));
+    window_main.present();
 
-    let connection_button = Button::builder()
-        .icon_name("network-offline-symbolic")
-        .action_name("win.stats")
-        .build();
-
-    let volume_button = Button::builder()
-        .icon_name("audio-volume-high-symbolic")
-        .tooltip_text("50%")
-        .build();
-
-    let header_bar = HeaderBar::builder().build();
-
-    header_bar.pack_end(&about_button);
-    header_bar.pack_end(&settings_button);
-    header_bar.pack_start(&connection_button);
-    header_bar.pack_start(&volume_button);
-
-    let button = Button::builder()
-        .label("Press me!")
-        .margin_top(12)
-        .margin_bottom(12)
-        .margin_start(12)
-        .margin_end(12)
-        .build();
-
-    button.connect_clicked(move |button| {
-        button.set_label("Hello World!");
-    });
-
-    let vbox = Box::builder().orientation(Orientation::Vertical).build();
-
-    vbox.append(&header_bar);
-    vbox.append(&button);
-
-    let window = ApplicationWindow::builder()
-        .application(app)
-        .title(env!("CARGO_PKG_NAME"))
-        .content(&vbox)
-        .default_width(800)
-        .default_height(600)
-        .build();
-
-    let action_about = SimpleAction::new("about", None);
-
-    action_about.connect_activate(clone!(@weak app, @weak window => move |_, _| {
-        AboutWindow::builder()
-            .application(&app)
-            .transient_for(&window)
-            .resizable(false)
-            .application_icon("audio")
-            .application_name(env!("CARGO_PKG_NAME"))
-            .version(format!("{} - backend {}", env!("VERSION"), backend::VERSION))
-            .developer_name("Thomas Büning")
-            .website("https://github.com/tbuen/audio-gtk")
-            .build()
-            .present();
+    builder.object::<Button>("button_about").unwrap().connect_clicked(clone!(@strong builder => move |_| {
+        builder.add_from_resource("/com/github/tbuen/audio-gtk/ui/window_about.ui").unwrap();
+        let window_about: AboutWindow = builder.object("window_about").unwrap();
+        window_about.set_application_name(env!("CARGO_PKG_NAME"));
+        window_about.set_version(&format!("{} - backend {}", env!("VERSION"), backend::VERSION));
+        window_about.present();
     }));
 
-    window.add_action(&action_about);
-
-    let action_stats = SimpleAction::new("stats", None);
-
-    let header_bar = HeaderBar::builder()
-        .title_widget(&WindowTitle::builder().title("disconnected").build())
-        .build();
-
-    let label_client_cnt = Label::builder()
-        .label("connected clients: 0")
-        .margin_top(12)
-        .margin_bottom(12)
-        .margin_start(12)
-        .margin_end(12)
-        .build();
-
-    let vbox = Box::builder().orientation(Orientation::Vertical).build();
-
-    vbox.append(&header_bar);
-    vbox.append(&label_client_cnt);
-
-    let window_stats = Window::builder()
-        .hide_on_close(true)
-        .title("Info")
-        .content(&vbox)
-        .build();
-
-    action_stats.connect_activate(clone!(@weak window_stats => move |_,_| {
-        window_stats.present();
-    }));
-
-    window.add_action(&action_stats);
-
-    window.present();
+    builder
+        .object::<Button>("button_stats")
+        .unwrap()
+        .connect_clicked(clone!(@strong builder => move |_| {
+            builder.object::<Window>("window_stats").unwrap().present();
+        }));
 
     let (gtk_sender, gtk_receiver) = MainContext::channel(PRIORITY_DEFAULT);
 
@@ -175,42 +96,20 @@ fn build_ui(
 
     gtk_receiver.attach(
         None,
-        clone!(@weak connection_button, @weak header_bar => @default-return Continue(false),
+        clone!(@strong builder => @default-return Continue(false),
             move |evt| {
                 match evt {
                     Event::Connected  => {
-                        connection_button.set_icon_name("network-idle-symbolic");
+                        builder.object::<Button>("button_stats").unwrap().set_icon_name("network-idle-symbolic");
                     }
-                    Event::Version(ver) => {
+                    Event::Version(_ver) => {
                         println!("received version *******");
-                        if let Some(w) = header_bar.title_widget() {
-                            if let Ok(t) = w.downcast::<WindowTitle>() {
-                                t.set_title(&ver.project);
-                                t.set_subtitle(&ver.version);
-                            }
-                            else {
-                                println!("no windowtitle :(");
-                            }
-                        } else {
-                            println!("no title widget");
-                        }
                     }
                     Event::Synchronized => {
-                        connection_button.set_icon_name("network-transmit-receive-symbolic");
+                        builder.object::<Button>("button_stats").unwrap().set_icon_name("network-transmit-receive-symbolic");
                     }
                     Event::Disconnected => {
-                        connection_button.set_icon_name("network-offline-symbolic");
-                        if let Some(w) = header_bar.title_widget() {
-                            if let Ok(t) = w.downcast::<WindowTitle>() {
-                                t.set_title("disconnected");
-                                t.set_subtitle("");
-                            }
-                            else {
-                                println!("no windowtitle :(");
-                            }
-                        } else {
-                            println!("no title widget");
-                        }
+                        builder.object::<Button>("button_stats").unwrap().set_icon_name("network-error-symbolic");
                     }
                 }
                 Continue(true)

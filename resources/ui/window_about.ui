@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+    <object class="AdwAboutWindow" id="window_about">
+        <property name="transient_for">window_main</property>
+        <property name="resizable">false</property>
+        <property name="application_icon">audio</property>
+        <property name="developer_name">Thomas Büning</property>
+        <property name="website">http://github.com/tbuen/audio-gtk</property>
+    </object>
+</interface>
