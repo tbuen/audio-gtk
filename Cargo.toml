@@ -7,6 +7,10 @@ edition = "2021"
 backend = { path = "backend", package = "audio-backend" }
 adw = { version = "0.3", package = "libadwaita", features = ["v1_2"] }
 glib = { version = "0.17", features = ["v2_74"] }
+gtk = { version = "0.6", package = "gtk4", features = ["v4_10"] }
+gio = { version = "0.17", features = ["v2_74"] }
+once_cell = "1.17.1"
+serde = { version = "1", features = ["derive"] }
 
 [build-dependencies]
 glib-build-tools = "0.17"
