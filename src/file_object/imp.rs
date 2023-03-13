@@ -1,6 +1,6 @@
 use super::FileData;
 use adw::prelude::*;
-use glib::{ParamSpec, ParamSpecString, Value};
+use glib::{ParamSpec, ParamSpecBoolean, ParamSpecString, Value};
 use gtk::subclass::prelude::*;
 use once_cell::sync::Lazy;
 use std::cell::RefCell;
@@ -18,13 +18,23 @@ impl ObjectSubclass for FileObject {
 
 impl ObjectImpl for FileObject {
     fn properties() -> &'static [ParamSpec] {
-        static PROPERTIES: Lazy<Vec<ParamSpec>> =
-            Lazy::new(|| vec![ParamSpecString::builder("name").build()]);
+        static PROPERTIES: Lazy<Vec<ParamSpec>> = Lazy::new(|| {
+            vec![
+                ParamSpecBoolean::builder("dir").build(),
+                ParamSpecString::builder("name").build(),
+            ]
+        });
         PROPERTIES.as_ref()
     }
 
     fn set_property(&self, _id: usize, value: &Value, pspec: &ParamSpec) {
         match pspec.name() {
+            "dir" => {
+                let input_value = value
+                    .get()
+                    .expect("The value needs to be of type `Boolean`.");
+                self.data.borrow_mut().dir = input_value;
+            }
             "name" => {
                 let input_value = value
                     .get()
@@ -37,6 +47,7 @@ impl ObjectImpl for FileObject {
 
     fn property(&self, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
+            "dir" => self.data.borrow().dir.to_value(),
             "name" => self.data.borrow().name.to_value(),
             _ => unimplemented!(),
         }

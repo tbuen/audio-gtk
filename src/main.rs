@@ -21,7 +21,7 @@ fn main() {
         .application_id("com.github.tbuen.audio-gtk")
         .build();
 
-    app.connect_startup(clone!(@weak backend, @weak receiver => move |_| {
+    app.connect_startup(clone!(@strong backend, @strong receiver => move |_| {
         println!("startup begin");
         let (b, r) = Backend::new();
         backend.borrow_mut().replace(b);
@@ -29,13 +29,13 @@ fn main() {
         println!("startup end");
     }));
 
-    app.connect_activate(clone!(@weak backend, @weak receiver => move |app| {
+    app.connect_activate(clone!(@strong backend, @strong receiver => move |app| {
         println!("activate begin");
         build_ui(app, backend.clone(), receiver.clone());
         println!("activate end");
     }));
 
-    app.connect_shutdown(clone!(@weak backend, @weak receiver => move |_| {
+    app.connect_shutdown(clone!(@strong backend, @strong receiver => move |_| {
         println!("shutdown begin");
         backend.borrow_mut().take();
         receiver.lock().unwrap().take();
@@ -74,6 +74,27 @@ fn build_ui(
         window_about.present();
     }));
 
+    let listbox: ListBox = builder.object("listbox_files").unwrap();
+    let model = ListStore::new(FileObject::static_type());
+    listbox.bind_model(Some(&model), clone!(@strong builder, @strong model, @strong backend => move |obj| {
+        let row = ActionRow::builder().activatable(true).build();
+        row.connect_activated(clone!(@strong obj, @strong builder, @strong model, @strong backend => move |_| {
+            if obj.property::<bool>("dir") {
+                println!("Activated directory: {}", obj.property::<String>("name"));
+                if let Some(b) = &*backend.borrow_mut() {
+                    b.dir_enter(&obj.property::<String>("name"));
+                    refresh_list(&builder, &model, b);
+                }
+            } else {
+                println!("Activated file: {}", obj.property::<String>("name"));
+            }
+        }));
+        obj.bind_property("name", &row, "title")
+            .flags(BindingFlags::SYNC_CREATE)
+            .build();
+        row.into()
+    }));
+
     builder
         .object::<Button>("button_stats")
         .unwrap()
@@ -81,15 +102,17 @@ fn build_ui(
             builder.object::<Window>("window_stats").unwrap().present();
         }));
 
-    let listbox: ListBox = builder.object("listbox_files").unwrap();
-    let model = ListStore::new(FileObject::static_type());
-    listbox.bind_model(Some(&model), |obj| {
-        let row = ActionRow::builder().activatable(true).build();
-        obj.bind_property("name", &row, "title")
-            .flags(BindingFlags::SYNC_CREATE)
-            .build();
-        row.into()
-    });
+    builder
+        .object::<Button>("button_up")
+        .unwrap()
+        .connect_clicked(
+            clone!(@strong builder, @strong model, @strong backend => move |_| {
+                if let Some(b) = &*backend.borrow_mut() {
+                    b.dir_up();
+                    refresh_list(&builder, &model, b);
+                }
+            }),
+        );
 
     let (gtk_sender, gtk_receiver) = MainContext::channel(PRIORITY_DEFAULT);
 
@@ -121,13 +144,7 @@ fn build_ui(
                     Event::Synchronized => {
                         builder.object::<Button>("button_stats").unwrap().set_icon_name("network-transmit-receive-symbolic");
                         if let Some(b) = &*backend.borrow_mut() {
-                            builder.object::<Label>("label_dir").unwrap().set_label(&b.current_dir());
-
-                            let file_list = b.file_list();
-                            println!("Display now the following file list: {:?}", file_list);
-                            for file in file_list {
-                                model.append(&FileObject::new(file.name));
-                            }
+                            refresh_list(&builder, &model, b);
                         }
                     }
                     Event::Disconnected => {
@@ -138,4 +155,23 @@ fn build_ui(
             }
         ),
     );
+}
+
+fn refresh_list(builder: &Builder, model: &ListStore, backend: &Backend) {
+    let current_dir = &backend.current_dir();
+    builder
+        .object::<Label>("label_dir")
+        .unwrap()
+        .set_label(current_dir);
+    builder
+        .object::<Button>("button_up")
+        .unwrap()
+        .set_sensitive(!current_dir.is_empty());
+
+    let dir_content = backend.dir_content();
+    println!("Display now the following file list: {:?}", dir_content);
+    model.remove_all();
+    for entry in dir_content {
+        model.append(&FileObject::new(entry));
+    }
 }
