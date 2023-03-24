@@ -6,8 +6,6 @@
         <property name="content">
             <object class="GtkBox">
                 <property name="orientation">vertical</property>
-                <property name="spacing">12</property>
-                <property name="margin-bottom">12</property>
                 <child>
                     <object class="AdwHeaderBar">
                         <child type="end">
@@ -27,6 +25,12 @@
                             </object>
                         </child>
                         <child type="start">
+                            <object class="GtkButton" id="button_reload">
+                                <property name="icon-name">emblem-synchronizing-symbolic</property>
+                                <property name="sensitive">false</property>
+                            </object>
+                        </child>
+                        <child type="start">
                             <object class="GtkButton">
                                 <property name="icon-name">audio-volume-high-symbolic</property>
                                 <property name="tooltip-text">50%</property>
@@ -35,7 +39,16 @@
                     </object>
                 </child>
                 <child>
+                    <object class="GtkProgressBar" id="progressbar">
+                        <style>
+                            <class name="osd"/>
+                        </style>
+                    </object>
+                </child>
+                <child>
                     <object class="GtkPaned">
+                        <property name="margin-top">12</property>
+                        <property name="margin-bottom">12</property>
                         <property name="margin-start">12</property>
                         <property name="margin-end">12</property>
                         <child>
@@ -99,6 +112,10 @@
                                 <property name="margin-start">12</property>
                             </object>
                         </child>
+                    </object>
+                </child>
+                <child>
+                    <object class="AdwToastOverlay" id="toast_overlay">
                     </object>
                 </child>
             </object>

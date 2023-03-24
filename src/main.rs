@@ -1,10 +1,10 @@
 use adw::prelude::*;
-use adw::{AboutWindow, ActionRow, Application, ApplicationWindow, Window};
+use adw::{AboutWindow, ActionRow, Application, ApplicationWindow, Toast, ToastOverlay, Window};
 use backend::{Backend, Event};
 use file_object::FileObject;
 use gio::{resources_register_include, ListStore};
 use glib::{clone, BindingFlags, MainContext, PRIORITY_DEFAULT};
-use gtk::{Builder, Button, Label, ListBox};
+use gtk::{Builder, Button, Label, ListBox, ProgressBar};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
@@ -103,6 +103,16 @@ fn build_ui(
         }));
 
     builder
+        .object::<Button>("button_reload")
+        .unwrap()
+        .connect_clicked(clone!(@strong builder, @strong backend => move |_| {
+            if let Some(b) = &*backend.borrow_mut() {
+                b.reload();
+                builder.object::<Button>("button_reload").unwrap().set_sensitive(false);
+            }
+        }));
+
+    builder
         .object::<Button>("button_up")
         .unwrap()
         .connect_clicked(
@@ -136,19 +146,26 @@ fn build_ui(
             move |evt| {
                 match evt {
                     Event::Connected  => {
-                        builder.object::<Button>("button_stats").unwrap().set_icon_name("network-idle-symbolic");
+                        builder.object::<Button>("button_stats").unwrap().set_icon_name("network-transmit-receive-symbolic");
+                        builder.object::<Button>("button_reload").unwrap().set_sensitive(true);
                     }
                     Event::Version(_ver) => {
                         println!("received version *******");
                     }
                     Event::Synchronized => {
-                        builder.object::<Button>("button_stats").unwrap().set_icon_name("network-transmit-receive-symbolic");
+                        builder.object::<Button>("button_reload").unwrap().set_sensitive(true);
+                        builder.object::<ProgressBar>("progressbar").unwrap().pulse();
                         if let Some(b) = &*backend.borrow_mut() {
                             refresh_list(&builder, &model, b);
                         }
                     }
                     Event::Disconnected => {
                         builder.object::<Button>("button_stats").unwrap().set_icon_name("network-error-symbolic");
+                        builder.object::<Button>("button_reload").unwrap().set_sensitive(false);
+                        builder.object::<ProgressBar>("progressbar").unwrap().set_fraction(0.0);
+                    }
+                    Event::Error(e) => {
+                        builder.object::<ToastOverlay>("toast_overlay").unwrap().add_toast(Toast::builder().title(e).build());
                     }
                 }
                 Continue(true)
