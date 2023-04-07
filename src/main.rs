@@ -1,6 +1,6 @@
 use adw::prelude::*;
 use adw::{AboutWindow, ActionRow, Application, ApplicationWindow, Toast, ToastOverlay, Window};
-use backend::{Backend, Event};
+use backend::{Backend, Event, Reload};
 use file_object::FileObject;
 use gio::{resources_register_include, ListStore};
 use glib::{clone, BindingFlags, MainContext, PRIORITY_DEFAULT};
@@ -14,18 +14,18 @@ use std::thread;
 mod file_object;
 
 fn main() {
-    let backend = Rc::new(RefCell::<Option<Backend>>::new(None));
-    let receiver = Arc::new(Mutex::<Option<Receiver<Event>>>::new(None));
+    let (backend, receiver) = Backend::new();
+
+    let backend = Rc::new(RefCell::new(backend));
+    let receiver = Arc::new(Mutex::new(receiver));
 
     let app = Application::builder()
         .application_id("com.github.tbuen.audio-gtk")
         .build();
 
-    app.connect_startup(clone!(@strong backend, @strong receiver => move |_| {
+    app.connect_startup(clone!(@strong backend => move |_| {
         println!("startup begin");
-        let (b, r) = Backend::new();
-        backend.borrow_mut().replace(b);
-        receiver.lock().unwrap().replace(r);
+        backend.borrow_mut().start();
         println!("startup end");
     }));
 
@@ -35,10 +35,9 @@ fn main() {
         println!("activate end");
     }));
 
-    app.connect_shutdown(clone!(@strong backend, @strong receiver => move |_| {
+    app.connect_shutdown(clone!(@strong backend => move |_| {
         println!("shutdown begin");
-        backend.borrow_mut().take();
-        receiver.lock().unwrap().take();
+        backend.borrow_mut().shutdown();
         println!("shutdown end");
     }));
 
@@ -49,8 +48,8 @@ fn main() {
 
 fn build_ui(
     app: &Application,
-    backend: Rc<RefCell<Option<Backend>>>,
-    receiver: Arc<Mutex<Option<Receiver<Event>>>>,
+    backend: Rc<RefCell<Backend>>,
+    receiver: Arc<Mutex<Receiver<Event>>>,
 ) {
     resources_register_include!("resources.gresource").unwrap();
 
@@ -81,10 +80,8 @@ fn build_ui(
         row.connect_activated(clone!(@strong obj, @strong builder, @strong model, @strong backend => move |_| {
             if obj.property::<bool>("dir") {
                 println!("Activated directory: {}", obj.property::<String>("name"));
-                if let Some(b) = &*backend.borrow_mut() {
-                    b.dir_enter(&obj.property::<String>("name"));
-                    refresh_list(&builder, &model, b);
-                }
+                backend.borrow().dir_enter(&obj.property::<String>("name"));
+                refresh_list(&builder, &model, &backend.borrow());
             } else {
                 println!("Activated file: {}", obj.property::<String>("name"));
             }
@@ -106,10 +103,7 @@ fn build_ui(
         .object::<Button>("button_reload")
         .unwrap()
         .connect_clicked(clone!(@strong builder, @strong backend => move |_| {
-            if let Some(b) = &*backend.borrow_mut() {
-                b.reload();
-                builder.object::<Button>("button_reload").unwrap().set_sensitive(false);
-            }
+            backend.borrow().reload();
         }));
 
     builder
@@ -117,10 +111,8 @@ fn build_ui(
         .unwrap()
         .connect_clicked(
             clone!(@strong builder, @strong model, @strong backend => move |_| {
-                if let Some(b) = &*backend.borrow_mut() {
-                    b.dir_up();
-                    refresh_list(&builder, &model, b);
-                }
+                backend.borrow().dir_up();
+                refresh_list(&builder, &model, &backend.borrow());
             }),
         );
 
@@ -128,13 +120,12 @@ fn build_ui(
 
     let receiver = receiver.clone();
     thread::spawn(move || {
-        if let Some(r) = &*receiver.lock().unwrap() {
-            loop {
-                if let Ok(evt) = r.recv() {
-                    gtk_sender.send(evt).unwrap();
-                } else {
-                    break;
-                }
+        let receiver = receiver.lock().unwrap();
+        loop {
+            if let Ok(evt) = receiver.recv() {
+                gtk_sender.send(evt).unwrap();
+            } else {
+                break;
             }
         }
         println!("spawni exit");
@@ -152,11 +143,21 @@ fn build_ui(
                     Event::Version(_ver) => {
                         println!("received version *******");
                     }
-                    Event::Synchronized => {
-                        builder.object::<Button>("button_reload").unwrap().set_sensitive(true);
-                        builder.object::<ProgressBar>("progressbar").unwrap().pulse();
-                        if let Some(b) = &*backend.borrow_mut() {
-                            refresh_list(&builder, &model, b);
+                    Event::Reload(s) => {
+                        match s {
+                            Reload::Start => {
+                                builder.object::<Button>("button_reload").unwrap().set_sensitive(false);
+                                builder.object::<ProgressBar>("progressbar").unwrap().pulse();
+                                refresh_list(&builder, &model, &backend.borrow());
+                            }
+                            Reload::Step => {
+                                builder.object::<ProgressBar>("progressbar").unwrap().pulse();
+                            }
+                            Reload::Stop => {
+                                builder.object::<Button>("button_reload").unwrap().set_sensitive(true);
+                                builder.object::<ProgressBar>("progressbar").unwrap().set_fraction(0.0);
+                                refresh_list(&builder, &model, &backend.borrow());
+                            }
                         }
                     }
                     Event::Disconnected => {
