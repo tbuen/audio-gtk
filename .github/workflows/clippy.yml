@@ -10,15 +10,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    container:
+      image: archlinux:latest
+
     steps:
+      - name: install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S git gtk4 libadwaita rust --noconfirm
       - name: checkout
         uses: actions/checkout@v6
         with:
           submodules: true
-      - name: install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install libdbus-1-dev
-          sudo apt-get install libadwaita-1-dev
       - name: clippy
         run: cargo clippy --all-targets --all-features
