@@ -13,6 +13,10 @@ jobs:
       image: archlinux:latest
 
     steps:
+      - name: install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S git --noconfirm
       - name: checkout
         uses: actions/checkout@v6
         with:
