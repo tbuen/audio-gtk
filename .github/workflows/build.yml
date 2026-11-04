@@ -16,7 +16,7 @@ jobs:
       - name: install dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S git rust --noconfirm
+          pacman -S git pkgconf rust --noconfirm
       - name: checkout
         uses: actions/checkout@v6
         with:
